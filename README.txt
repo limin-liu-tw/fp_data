@@ -18,6 +18,6 @@ Whole Images
   For_PRL_NIST_14.jpg
   
 Code for prediction
-  One can use the trained model to do prediciton on previous images.
+  One can use the trained model to do prediciton on previous images. You need to change directory names in this script to load the model and test image.
   Usage:
     python3 PRL_load_model_run.py mdl360_800_30 For_PRL_a002_03.png
