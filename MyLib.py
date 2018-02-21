@@ -1,4 +1,5 @@
 import numpy as np
+import operator
 
 _DeBug_ = False
 Smth  = 2
@@ -9,6 +10,63 @@ DirNo = 15
 DirAgl= [i*(180//DirNo) for i in range(DirNo)]
 RowNo = lambda row: row//PixNo
 ColNo = lambda col: col//PixNo
+
+def checkTri(angle, fac=0):
+  if (fac==0):  # 0 +/- 30
+   if ( angle >=30 and angle < 90):  #(60)
+     return 0
+   elif (angle >=90 and angle <150): #(120)
+     return 128
+   else:
+     return 255 #(0)
+  elif (fac==1):  # 30 +/- 30
+   if ( angle >=0 and angle < 60):   #(30)
+     return 0
+   elif (angle >=60 and angle <120): #(90)
+     return 128
+   else:
+     return 255  #(120)
+  elif (fac==2):  # 10 +/- 30
+   if ( angle >=40 and angle < 100): #(70)
+     return 0 
+   elif (angle >=100 and angle <160):#(130)
+     return 128
+   else:
+     return 255  #(10)
+  elif (fac==3):  # 20 +/- 30
+   if ( angle >= 50 and angle < 110): #(80)
+     return 0
+   elif (angle >=110 and angle <170): #(140)
+     return 128
+   else: 
+     return 255  #(20)
+  elif (fac==4):  # 0 +/- 10 (60)
+   if ( angle >=50 and angle < 70):  #(60)
+     return 0
+   elif (angle >=110 and angle <130): #(120)
+     return 128
+   elif ( angle <10 or angle > 170): #(0)
+     return 255
+   else:
+     return 192  
+  elif (fac==5):  # 40 +/- 20 (40)
+   if ( angle >=20 and angle < 60): #(40)
+     return 0
+   elif (angle >=80 and angle <120): #(100)
+     return 128
+   elif ( angle >=140 and angle < 180): #(160)
+     return 255
+   else:
+     return 192 
+  elif (fac==6):  #70 +/- 20 (70)
+   if ( angle >=50 and angle < 90):  #(70)
+     return 0
+   elif (angle >=110 and angle <150): #(130)
+     return 128
+   elif ( angle < 20 ): #(10)
+     return 255
+   else:
+     return 192   
 
 def prepWeight():
     wgt = np.empty(91)  # delta is b/w 0, 90
@@ -84,7 +142,161 @@ def FP_DirSobel(plt, fm, fbin, fpfg, showImg=False, dirNo = DirNo, pixNo=PixNo):
   print('==================')
   return fpdirSbl
 
-def UT_SetGray(plt, fpfg, fm, fpdir_prob, fpdir_porg):
+def UT_SetTri(plt, fpfg, fpdir, fmdir, noColor=3):
+   # fpfg: foreground(true)
+   # fpdir: block direction
+   
+   print('=Setting Tri-color Image=')
+   fmtri=fmdir.copy()
+   print(fpfg.shape, fpdir.shape, fmtri.shape)
+   height, width = fmtri.shape[0], fmtri.shape[1] 
+   NoHeight, NoWidth = RowNo(height), ColNo(width)
+  
+   agl_lst = [(x*180)//noColor for x in range(noColor)]
+   agl_d = 90//noColor
+   clr_lst = [(x*256)//(noColor-1) for x in range(noColor)]
+   clr_lst[-1]=clr_lst[-1]-1
+   clr_delta=256/(noColor-1)
+
+   for i in range(fpfg.shape[0]):
+     for j in range(fpfg.shape[1]): 
+        a,b,c,d=i*PixNo,(i+1)*PixNo,j*PixNo,(j+1)*PixNo
+        if ( fpfg[i][j] ) :
+            #print(i, j, fm[a:b,c:d] )
+            for k in range(a,b):
+             for l in range(c,d):
+              fmtri[k,l]=192
+            #fmtri[a:b,c:d].fill(192)#=192
+           # print(fm[a:b,c:d])
+        #else :
+        #    fm[a:b,c:d]=255
+
+        #fm[a:b,c:d]=clr
+    
+   print('=Setting Tri-color Image....Done!')
+   return fmtri
+
+def UT_PixTri(plt, fpfg, pixdir, pixtri, noColor=3, SWD=2, SMLoop=4):
+   print('=Setting Pix-Tri. Image=')
+   height, width = pixtri.shape[0], pixtri.shape[1] 
+   #NoHeight, NoWidth = RowNo(height), ColNo(width)
+   #fpdirpn = np.full((NoHeight,NoWidth), -1, dtype=float)
+   print('pixdir.shape: ', pixdir.shape)
+   print('pixtri.shape: ', pixtri.shape) 
+
+   pixsmt=pixtri.copy()  # smooth base array
+   W12 = 12
+   for i in range(height):
+     for j in range(width): 
+       if i < W12 or i>= height - W12 or j < W12 or j>= width-12:
+         pixtri[i][j], pixsmt[i][j]=192, -1
+       else:
+         if ( fpfg[i//PixNo][j//PixNo] ):
+          pd=pixdir[i-W12][j-W12]
+          pixtri[i-W12][j-W12] = pixsmt[i-W12][j-W12]=checkTri(pd,0)
+          #if ( pd >= 30 and pd < 90 ):
+          #  pixtri[i-W12][j-W12], pixsmt[i-W12][j-W12]=0, 0
+          #elif ( pd >= 90 and pd < 150 ):
+          #  pixtri[i-W12][j-W12], pixsmt[i-W12][j-W12]=128, 128
+          #else:
+          #  pixtri[i-W12][j-W12], pixsmt[i-W12][j-W12]=255, 255
+         else:
+            pixtri[i-W12][j-W12], pixsmt[i-W12][j-W12]=192, 192
+
+   #SWD=2  # for 3x3 ; 5x5 needs 2
+   th_no = ((2*SWD+1)**2)//2 + 1
+   print('==== th_no =====' , th_no)
+   for sm_no in range(SMLoop):
+    pixbuf=pixsmt.copy()
+    for i in range(height):
+     for j in range(width): 
+       if i < W12 or i>= height - W12 or j < W12 or j>= width-12: continue  
+       zary = pixbuf[i-SWD,j-SWD:j+SWD+1].flatten()
+       for m in range(2*SWD+1):
+         if m == 0: continue
+         mm = m - SWD
+         for n in range(2*SWD+1):
+           nn = n - SWD
+           if mm == 0 and nn == 0: continue
+           zary = np.append(zary, [pixbuf[i+mm, j+nn]])
+       un, uc = np.unique(zary, return_counts=True)
+       undict = dict(zip(un,uc))
+       if undict[max(undict, key=undict.get)] >= th_no:
+          pixsmt[i,j]=max(undict, key=undict.get)
+
+   #plt.imshow(pixsmt, cmap=plt.cm.gray)
+   #plt.show()
+   print('=Setting Pix-Tri. Image....Done!')
+   return pixsmt
+
+def UT_SetTri(plt, fpfg, fpdir, fm, r_fac=0, noColor=3):
+   print('=Setting Tri. Image=')
+   height, width = fm.shape[0], fm.shape[1] 
+   NoHeight, NoWidth = RowNo(height), ColNo(width)
+   fpdirpn = np.full((NoHeight,NoWidth), -1, dtype=float)
+
+   for i in range(fpfg.shape[0]):
+     for j in range(fpfg.shape[1]): 
+        a,b,c,d=i*PixNo,(i+1)*PixNo,j*PixNo,(j+1)*PixNo
+        
+        if ( fpfg[i][j] ):
+          clr=checkTri(fpdir[i][j],0) 
+          if ( clr == 0 ):
+            fpdirpn[i][j] = 0
+          elif (clr==128):
+            fpdirpn[i][j] = 1
+          elif (clr==255):
+            fpdirpn[i][j] = 2 
+          else:
+            pass
+        #if ( fpfg[i][j] ):
+        #  if ( fpdir[i][j] >= 30 and fpdir[i][j] < 90 ):
+        #     clr, fpdirpn[i][j] = 0, 0
+        #  elif ( fpdir[i][j] >= 90 and fpdir[i][j] < 150 ):
+        #     clr, fpdirpn[i][j] = 128, 1
+        #  else:
+        #     clr, fpdirpn[i][j] = 255, 2
+        else:
+          clr, fpdirpn[i][j] =192, -1
+        #print('fm:', a, b, c, d)
+        fm[a:b,c:d]=clr
+
+   if r_fac != 0:   
+    fm_fac = fm.copy()
+    for i in range(0,fpfg.shape[0],r_fac):
+     for j in range(0,fpfg.shape[1],r_fac): 
+      a,b,c,d=i*PixNo,(i+r_fac)*PixNo,j*PixNo,(j+r_fac)*PixNo
+      zarry = np.zeros((noColor+1,), dtype=np.int)
+      for m in range(r_fac):
+       if i+m >= fpfg.shape[0]: continue
+       for n in range(r_fac):
+        if j+n >= fpfg.shape[1]: continue
+        clridx = int(fpdirpn[i+m][j+n])
+        if clridx>=0:
+          zarry[clridx]+=1
+        else:
+          zarry[noColor]+=1        
+      #print (i, j, fpdirpn[i][j], fpdirpn[i][j+1],fpdirpn[i+1][j], fpdirpn[i+1][j+1], zarry, np.argmax(zarry) )
+      #print (i, j, zarry, zarry[-1],np.argmax(zarry) )
+      #if ( fpfg[i][j] ):
+      if ( zarry[-1]==zarry[np.argmax(zarry)] ):
+          clr=192
+      elif ( np.argmax(zarry)==0 ):
+          clr = 0
+      elif ( np.argmax(zarry)==1 ):
+          clr = 128
+      elif ( np.argmax(zarry)==2 ):
+          clr = 255
+      else:
+          clr =192
+      #print('fm_fac:', a, b, c, d)
+      fm_fac[a:b,c:d]=clr
+     
+   print('=Setting Tri. Image....Done!')
+   if r_fac!=0:
+     return fm_fac
+
+def UT_SetGray(plt, fpfg, fm, fpdir_prob):
    print('=Setting Prob. Image=')
    height, width = fm.shape[0], fm.shape[1] 
    NoHeight, NoWidth = RowNo(height), ColNo(width)
@@ -94,34 +306,60 @@ def UT_SetGray(plt, fpfg, fm, fpdir_prob, fpdir_porg):
      for j in range(fpfg.shape[1]): 
         a,b,c,d=i*PixNo,(i+1)*PixNo,j*PixNo,(j+1)*PixNo
         #print('setting', i,j, '=',a,b,c,d,':', fpfg[i][j], end=' ')
-        clr=int(fpdir_prob[i][j]*255) if ( fpfg[i][j] ) else 172
+        clr=int(fpdir_prob[i][j]*255) if ( fpfg[i][j] ) else 192
         fm[a:b,c:d]=clr
         #print('Prob.',i,j,'....', fpdir_porg[i][j], fpdir_prob[i][j])
         if ( fpfg[i][j] ): 
            fpdirpn[i][j] = int(fpdir_prob[i][j]*255)
-           print('{:.3f} {:3d} {:.3f}'.format(fpdir_porg[i][j]*100, clr, fpdir_prob[i][j]))
-           if ( fpdirpn[i][j] > cmax ): cmax = fpdirpn[i][j]
-           if ( fpdirpn[i][j] < cmin ): cmin = fpdirpn[i][j]
-#   plt.imshow(fm, cmap=plt.cm.gray) 
-#   plt.show()
-#   cnor=158
-#   if cmin<cnor: cmin=cnor
-#   cdelta=cmax-cmin
-#   print('cmax, cmin', cmax, cmin, cdelta)
-#   for i in range(fpfg.shape[0]):
-#     for j in range(fpfg.shape[1]): 
-#       a,b,c,d=i*PixNo,(i+1)*PixNo,j*PixNo,(j+1)*PixNo
-#       if ( fpfg[i][j] ): 
-#         print('setting', i, j, 'old', fpdirpn[i][j] ,end=' new ')
-#         if (fpdirpn[i][j]<cnor): 
-#           fpdirpn[i][j]=0
-#         else:
-#           fpdirpn[i][j]=int((fpdirpn[i][j]-cmin)*255/cdelta)
-#         print(fpdirpn[i][j])
-#         fm[a:b,c:d]=int(fpdirpn[i][j])
-#   plt.imshow(fm, cmap=plt.cm.gray) 
-#   plt.show()          
+           print('{} {} {:3d} {:.3f}'.format(i, j, int(fpdir_prob[i][j]*255), fpdir_prob[i][j]))
+         
    print('=Setting rob. Image....Done!')
+
+def UT_SetLine2(plt, fpfg, fpdir, fmS, showImg=False, Clr='white', Width=3):
+   print('=Setting Line Segment=', Clr, Clr=='Red')
+   print(fmS)
+   fm=np.full(fmS, 255, dtype=int)
+   CC = 255 if Clr == 'white' else 0
+   CW = 0
+   CB = int(128)
+   for i in range(fpfg.shape[0]):
+     for j in range(fpfg.shape[1]): 
+        a,b,c,d=i*PixNo,(i+1)*PixNo,j*PixNo,(j+1)*PixNo
+        Cx, Cy, tmpagl, newagl, ctr = (a+b)//2, (c+d)//2, [[0]]*PixNo, [[0]]*DirNo, 0
+        CxX, CyY=0,0
+        if ( fpfg[i][j]):
+
+         if (fpdir[i][j]<=45 or fpdir[i][j] >=135):
+          CxOff = PixNo_1_2 * np.tan(fpdir[i][j]*np.pi/180)
+          # to point
+          CxX, CyY=int(Cx-CxOff), int(Cy+PixNo_1_2)          
+          # from point
+          _CxX, _CyY = Cx*2-CxX,Cy*2-CyY
+          RGB = 0 if Clr=='Red' else 2 if Clr=='Blue' else 1
+          for _r in range(PixNo):
+             _x_, _y_ = int(_CxX-(_r * np.tan(fpdir[i][j]*np.pi/180))), _CyY+_r
+             if Width==5:
+               fm[_x_,_y_]=fm[_x_-1,_y_]=fm[_x_-2,_y_]=fm[_x_+1,_y_]=fm[_x_+2,_y_]=CC
+             else:
+               fm[_x_,_y_]=fm[_x_-1,_y_]=fm[_x_+1,_y_]=CC
+
+         else:
+          CyOff = PixNo_1_2 / np.tan(fpdir[i][j]*np.pi/180)
+          CxX, CyY=int(Cx-PixNo_1_2), int(Cy+CyOff)
+          _CxX, _CyY = Cx*2-CxX, Cy*2-CyY
+          RGB = 0 if Clr=='Red' else 2 if Clr=='Blue' else 1
+          for _r in range(PixNo):
+             _x_, _y_ = _CxX-_r, int(_CyY+ (_r/np.tan(fpdir[i][j]*np.pi/180)))
+             if Width==5:
+               fm[_x_,_y_]=fm[_x_,_y_-1]=fm[_x_,_y_-2]=fm[_x_,_y_+1]=fm[_x_,_y_+2]=CC
+             else:
+               fm[_x_,_y_]=fm[_x_,_y_-1]=fm[_x_,_y_+1]=CC
+
+        else:
+         fm[a:b,c:d]=int(192)
+
+   print('=Setting Line Segment....Done!')
+   return fm
 
 def UT_SetLine(plt, fpfg, fpdir, fm, axs, showImg=False, Clr='white', Width=3):
    print('=Setting Line Segment=', Clr, Clr=='Red')
@@ -162,7 +400,7 @@ def UT_SetLine(plt, fpfg, fpdir, fm, axs, showImg=False, Clr='white', Width=3):
              else:
                fm[_x_,_y_]=fm[_x_,_y_-1]=fm[_x_,_y_+1]=CC
         else:
-         fm[a:b,c:d]=172
+         fm[a:b,c:d]=192
         if showImg: axs[i][j]=plt.subplot2grid((fpdir.shape[0],fpdir.shape[1]),(i,j))
 
         if showImg: axs[i][j].imshow(fm[a:b,c:d], cmap=plt.cm.gray)
@@ -359,6 +597,8 @@ def FP_Smooth(fdata):
                 total+=fdata[x][y];
         fm[r][c]=total/((Smth*2+1)**2)
   return fm
+
+
 
 
 
